@@ -1,0 +1,296 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EchoShield Edge Detection</title>
+    <meta name="description" content="Browser-based acoustic drone detection using ONNX.js">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: white;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 100%;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            text-align: center;
+        }
+
+        .subtitle {
+            text-align: center;
+            opacity: 0.9;
+            margin-bottom: 2rem;
+        }
+
+        .status-card {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .status-row:last-child {
+            border-bottom: none;
+        }
+
+        .status-label {
+            font-weight: 500;
+        }
+
+        .status-value {
+            font-weight: 700;
+            font-size: 1.2rem;
+        }
+
+        .status-value.active {
+            color: #4ade80;
+        }
+
+        .status-value.inactive {
+            color: #f87171;
+        }
+
+        .button {
+            width: 100%;
+            padding: 1rem;
+            border: none;
+            border-radius: 12px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-bottom: 1rem;
+        }
+
+        .button.primary {
+            background: #4ade80;
+            color: #1a1a1a;
+        }
+
+        .button.primary:hover {
+            background: #22c55e;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(74, 222, 128, 0.4);
+        }
+
+        .button.danger {
+            background: #f87171;
+            color: white;
+        }
+
+        .button.danger:hover {
+            background: #ef4444;
+        }
+
+        .button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .info-text {
+            text-align: center;
+            opacity: 0.8;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+
+        .detection-log {
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            max-height: 200px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 0.85rem;
+            margin-top: 1rem;
+        }
+
+        .detection-log p {
+            margin: 0.25rem 0;
+        }
+
+        .setup-instructions {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .setup-instructions h3 {
+            margin-bottom: 0.5rem;
+        }
+
+        .setup-instructions ol {
+            margin-left: 1.5rem;
+        }
+
+        .setup-instructions li {
+            margin: 0.5rem 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>EchoShield Edge Detection</h1>
+        <p class="subtitle">Browser-based acoustic drone detection</p>
+
+        <div class="status-card">
+            <div class="status-row">
+                <span class="status-label">Node ID:</span>
+                <span class="status-value" id="node-id">Not configured</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">GPS Status:</span>
+                <span class="status-value inactive" id="gps-status">Waiting...</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Audio Status:</span>
+                <span class="status-value inactive" id="audio-status">Inactive</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">ML Model:</span>
+                <span class="status-value inactive" id="model-status">Not loaded</span>
+            </div>
+            <div class="status-row">
+                <span class="status-label">Detections:</span>
+                <span class="status-value" id="detection-count">0</span>
+            </div>
+        </div>
+
+        <button class="button primary" id="start-btn" onclick="startDetection()">
+            Start Detection
+        </button>
+        <button class="button danger" id="stop-btn" onclick="stopDetection()" style="display: none;">
+            Stop Detection
+        </button>
+
+        <div class="detection-log" id="log" style="display: none;">
+            <p>Detection log...</p>
+        </div>
+
+        <div class="setup-instructions">
+            <h3>Setup Instructions:</h3>
+            <ol>
+                <li>Allow microphone and location permissions when prompted</li>
+                <li>Ensure you're using HTTPS (required for GPS on mobile)</li>
+                <li>Click "Start Detection" to begin monitoring</li>
+                <li>The app will automatically send detections to the server</li>
+            </ol>
+        </div>
+
+        <p class="info-text">
+            This page will implement full edge detection functionality using ONNX.js for ML inference.
+            <br>
+            Copy the JavaScript detection logic from your existing edge_webapp_adapter/app.v4.js
+            and ONNX model from edge_artifacts/ to {% static 'edge_client/' %} directory.
+        </p>
+    </div>
+
+    <script>
+        // Placeholder JavaScript - replace with actual detection logic from app.v4.js
+        let isRunning = false;
+        let detectionCount = 0;
+
+        function startDetection() {
+            isRunning = true;
+            document.getElementById('start-btn').style.display = 'none';
+            document.getElementById('stop-btn').style.display = 'block';
+            document.getElementById('log').style.display = 'block';
+            document.getElementById('audio-status').textContent = 'Active';
+            document.getElementById('audio-status').className = 'status-value active';
+
+            // Request permissions
+            requestPermissions();
+
+            addLog('Detection started...');
+        }
+
+        function stopDetection() {
+            isRunning = false;
+            document.getElementById('start-btn').style.display = 'block';
+            document.getElementById('stop-btn').style.display = 'none';
+            document.getElementById('audio-status').textContent = 'Inactive';
+            document.getElementById('audio-status').className = 'status-value inactive';
+
+            addLog('Detection stopped.');
+        }
+
+        function requestPermissions() {
+            // Request microphone
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(stream => {
+                    addLog('Microphone access granted');
+                })
+                .catch(err => {
+                    addLog('Error accessing microphone: ' + err.message);
+                });
+
+            // Request GPS
+            navigator.geolocation.getCurrentPosition(
+                position => {
+                    document.getElementById('gps-status').textContent = 'Active';
+                    document.getElementById('gps-status').className = 'status-value active';
+                    addLog(`GPS acquired: ${position.coords.latitude.toFixed(4)}, ${position.coords.longitude.toFixed(4)}`);
+                },
+                error => {
+                    addLog('GPS error: ' + error.message);
+                },
+                { enableHighAccuracy: true }
+            );
+        }
+
+        function addLog(message) {
+            const log = document.getElementById('log');
+            const timestamp = new Date().toLocaleTimeString();
+            const p = document.createElement('p');
+            p.textContent = `[${timestamp}] ${message}`;
+            log.insertBefore(p, log.firstChild);
+
+            // Keep only last 20 messages
+            while (log.children.length > 20) {
+                log.removeChild(log.lastChild);
+            }
+        }
+
+        // Set random node ID on load
+        window.addEventListener('load', () => {
+            const nodeId = 'NODE_' + Math.random().toString(36).substr(2, 9).toUpperCase();
+            document.getElementById('node-id').textContent = nodeId;
+        });
+    </script>
+</body>
+</html>

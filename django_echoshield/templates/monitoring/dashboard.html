@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EchoShield Monitoring Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.6;
+        }
+
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 1.5rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: #bdc3c7;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 2rem auto;
+            padding: 0 1rem;
+        }
+
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .kpi-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid #3498db;
+        }
+
+        .kpi-card.success {
+            border-left-color: #27ae60;
+        }
+
+        .kpi-card.warning {
+            border-left-color: #f39c12;
+        }
+
+        .kpi-card.danger {
+            border-left-color: #e74c3c;
+        }
+
+        .kpi-label {
+            font-size: 0.9rem;
+            color: #7f8c8d;
+            margin-bottom: 0.5rem;
+        }
+
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #2c3e50;
+        }
+
+        .kpi-unit {
+            font-size: 1rem;
+            color: #95a5a6;
+            margin-left: 0.5rem;
+        }
+
+        .section {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-size: 1.4rem;
+            margin-bottom: 1rem;
+            color: #2c3e50;
+            border-bottom: 2px solid #ecf0f1;
+            padding-bottom: 0.5rem;
+        }
+
+        .events-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+
+        .events-table th {
+            background: #ecf0f1;
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+            color: #2c3e50;
+        }
+
+        .events-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #ecf0f1;
+        }
+
+        .events-table tr:hover {
+            background: #f8f9fa;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+
+        .badge.normal {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge.delayed {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.obsolete {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge.duplicate {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .badge.valid {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .refresh-info {
+            text-align: center;
+            color: #7f8c8d;
+            margin-top: 1rem;
+            font-size: 0.9rem;
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 3rem;
+            color: #95a5a6;
+        }
+
+        @media (max-width: 768px) {
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .events-table {
+                font-size: 0.85rem;
+            }
+
+            .events-table th,
+            .events-table td {
+                padding: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>EchoShield Monitoring Dashboard</h1>
+        <p>Real-time acoustic drone detection monitoring</p>
+    </div>
+
+    <div class="container">
+        <!-- KPI Cards -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-label">Total Events</div>
+                <div class="kpi-value">{{ total_events }}</div>
+            </div>
+
+            <div class="kpi-card success">
+                <div class="kpi-label">Active Nodes</div>
+                <div class="kpi-value">{{ active_nodes }}</div>
+            </div>
+
+            <div class="kpi-card {% if avg_latency_ms > 500 %}warning{% endif %}">
+                <div class="kpi-label">Average Latency</div>
+                <div class="kpi-value">{{ avg_latency_ms|floatformat:2 }}<span class="kpi-unit">ms</span></div>
+            </div>
+
+            <div class="kpi-card">
+                <div class="kpi-label">Active Tracks</div>
+                <div class="kpi-value">{{ active_tracks }}</div>
+            </div>
+        </div>
+
+        <!-- Latency Statistics -->
+        <div class="section">
+            <h2 class="section-title">Latency Statistics</h2>
+            <div class="kpi-grid">
+                <div class="kpi-card success">
+                    <div class="kpi-label">Min Latency</div>
+                    <div class="kpi-value" style="font-size: 1.8rem;">{{ min_latency_ms|floatformat:2 }}<span class="kpi-unit">ms</span></div>
+                </div>
+                <div class="kpi-card">
+                    <div class="kpi-label">Average Latency</div>
+                    <div class="kpi-value" style="font-size: 1.8rem;">{{ avg_latency_ms|floatformat:2 }}<span class="kpi-unit">ms</span></div>
+                </div>
+                <div class="kpi-card {% if max_latency_ms > 2000 %}danger{% elif max_latency_ms > 500 %}warning{% endif %}">
+                    <div class="kpi-label">Max Latency</div>
+                    <div class="kpi-value" style="font-size: 1.8rem;">{{ max_latency_ms|floatformat:2 }}<span class="kpi-unit">ms</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Recent Events Table -->
+        <div class="section">
+            <h2 class="section-title">Recent Events (Last 50)</h2>
+
+            {% if recent_events %}
+            <table class="events-table">
+                <thead>
+                    <tr>
+                        <th>Event ID</th>
+                        <th>Node</th>
+                        <th>Sensor Type</th>
+                        <th>Latency</th>
+                        <th>Status</th>
+                        <th>Bearing</th>
+                        <th>Confidence</th>
+                        <th>Location</th>
+                        <th>Track</th>
+                        <th>Timestamp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for event in recent_events %}
+                    <tr>
+                        <td><code>{{ event.event_id|slice:":8" }}...</code></td>
+                        <td>{{ event.sensor_node_id }}</td>
+                        <td>{{ event.sensor_type }}</td>
+                        <td>{{ event.latency_ms|floatformat:2 }} ms</td>
+                        <td>
+                            <span class="badge {{ event.latency_status }}">
+                                {{ event.latency_status }}
+                            </span>
+                        </td>
+                        <td>
+                            {% if event.bearing_deg %}
+                                {{ event.bearing_deg|floatformat:1 }}°
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if event.bearing_conf %}
+                                {{ event.bearing_conf|floatformat:2 }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if event.lat and event.lon %}
+                                {{ event.lat|floatformat:4 }}, {{ event.lon|floatformat:4 }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if event.object_track_id %}
+                                <code>{{ event.object_track_id|slice:":8" }}...</code>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>{{ event.created_at|date:"Y-m-d H:i:s" }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="no-data">
+                <p>No events recorded yet.</p>
+                <p>Start sending detection events from edge nodes to see them here.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <div class="refresh-info">
+            <p>Dashboard auto-refreshes every 5 seconds</p>
+            <p>Last updated: <span id="last-update">{{ now|date:"Y-m-d H:i:s" }}</span></p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-refresh dashboard every 5 seconds
+        setTimeout(function() {
+            location.reload();
+        }, 5000);
+
+        // Update last update timestamp
+        document.getElementById('last-update').textContent = new Date().toLocaleString();
+    </script>
+</body>
+</html>
