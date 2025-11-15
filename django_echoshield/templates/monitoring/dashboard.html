@@ -276,7 +276,8 @@
                         <th>Confidence</th>
                         <th>SNR (dB)</th>
                         <th>Angle (°)</th>
-                        <th>Bearing</th>
+                        <th>Bearing (°)</th>
+                        <th>GPS Coordinates</th>
                         <th>Latency</th>
                         <th>Status</th>
                         <th>Timestamp</th>
@@ -327,6 +328,13 @@
                         <td>
                             {% if event.bearing_deg %}
                                 {{ event.bearing_deg|floatformat:1 }}°
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if event.lat and event.lon %}
+                                {{ event.lat|floatformat:6 }}, {{ event.lon|floatformat:6 }}
                             {% else %}
                                 -
                             {% endif %}

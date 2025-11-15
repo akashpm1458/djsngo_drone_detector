@@ -39,6 +39,7 @@ class AudioUploadView(View):
             audio_file = request.FILES['audio_file']
             sensor_node_id = request.POST.get('sensor_node_id', 'web_upload')
             use_async = request.POST.get('use_async', 'false').lower() == 'true'
+            use_ml_model = request.POST.get('use_ml_model', 'false').lower() == 'true'
 
             logger.info(f"Received audio upload: {audio_file.name}, "
                        f"size={audio_file.size} bytes, async={use_async}")
@@ -85,6 +86,11 @@ class AudioUploadView(View):
 
                 # Get config dict
                 config_dict = self._config_to_dict(config)
+                
+                # Override ML model setting if requested
+                if use_ml_model:
+                    config_dict['use_ml_model'] = True
+                    config_dict['method'] = 'ml_model'
 
                 # Process audio
                 result = audio_service.process_audio_with_config(
@@ -143,6 +149,8 @@ class AudioUploadView(View):
             'mic_spacing_m': config.mic_spacing_m,
             'frame_length_ms': config.frame_length_ms,
             'hop_length_ms': config.hop_length_ms,
+            'use_ml_model': config.use_ml_model,
+            'ml_model_path': config.ml_model_path,
         }
 
 

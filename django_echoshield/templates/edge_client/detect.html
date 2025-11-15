@@ -313,8 +313,13 @@
 
         <div class="card">
             <div class="config-info">
-                <h3>Active Configuration</h3>
+                <h3>Detection Method</h3>
                 <p>
+                    <label for="detection-method" style="margin-right: 1rem; font-weight: 600;">Method:</label>
+                    <select id="detection-method" style="padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd; margin-right: 1rem;">
+                        <option value="signal_processing">Signal Processing</option>
+                        <option value="ml_model">ML Model (ONNX)</option>
+                    </select>
                     <span class="badge" id="config-method">Loading...</span>
                     <span id="config-details"></span>
                 </p>
@@ -405,14 +410,23 @@
 
                 if (data.status === 'ok') {
                     const config = data.config;
-                    document.getElementById('config-method').textContent = config.method_display;
-                    document.getElementById('config-details').textContent =
-                        `${config.fundamental_freq_hz}Hz, ${config.n_harmonics} harmonics, threshold ${config.confidence_threshold}`;
+                    const useML = config.use_ml_model || config.method === 'ml_model';
+                    document.getElementById('detection-method').value = useML ? 'ml_model' : 'signal_processing';
+                    document.getElementById('config-method').textContent = useML ? 'ML Model' : config.method_display;
+                    document.getElementById('config-details').textContent = useML 
+                        ? `ONNX Model: ${config.ml_model_path || 'drone_33d_mlp.onnx'}`
+                        : `${config.fundamental_freq_hz}Hz, ${config.n_harmonics} harmonics, threshold ${config.confidence_threshold}`;
                 }
             } catch (error) {
                 console.error('Error loading config:', error);
             }
         }
+
+        // Handle detection method change
+        document.getElementById('detection-method').addEventListener('change', function() {
+            const useML = this.value === 'ml_model';
+            document.getElementById('config-method').textContent = useML ? 'ML Model' : 'Signal Processing';
+        });
 
         // Tab switching
         function switchTab(tab) {
@@ -545,6 +559,8 @@
             const formData = new FormData();
             formData.append('audio_file', file);
             formData.append('sensor_node_id', 'web_interface');
+            const useML = document.getElementById('detection-method').value === 'ml_model';
+            formData.append('use_ml_model', useML);
 
             try {
                 const response = await fetch('/edge_client/api/audio/upload', {

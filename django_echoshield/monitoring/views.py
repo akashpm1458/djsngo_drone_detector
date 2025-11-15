@@ -298,6 +298,7 @@ def events_api(request):
             'lon': event.lon,
             'bearing_deg': event.bearing_deg,
             'bearing_conf': event.bearing_conf,
+            'doa_angle_deg': event.doa_angle_deg,
             'duplicate_flag': event.duplicate_flag,
             'object_track_id': event.object_track_id,
             'created_at': event.created_at.isoformat() if event.created_at else None

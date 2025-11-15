@@ -12,7 +12,7 @@ from dataclasses import dataclass
 # Import signal processing modules
 from .energy_likelihood_detector import EnergyLikelihoodDetector
 from .gcc_phat_doa import estimate_doa_gcc_phat, tdoa_to_doa_linear
-from .framing_windowing import frame_and_window, frame_and_window_multichannel
+from .framing_windowing import frame_and_window
 from .fft import compute_fft_per_frame
 from .harmonic_filter import frequency_harmonic_filter, make_harmonic_mask
 
@@ -66,6 +66,7 @@ class DetectionProcessor:
     - GCC-PHAT DOA: Direction of Arrival estimation for stereo audio
     - Harmonic Filter: Harmonic filtering for noise reduction
     - Combined: All methods combined for maximum confidence
+    - ML Model: ONNX-based machine learning model for detection
     """
 
     def __init__(self, config: Dict):
@@ -79,9 +80,17 @@ class DetectionProcessor:
         """
         self.config = config
         self.method = config.get('method', 'combined')
+        self.use_ml_model = config.get('use_ml_model', False) or self.method == 'ml_model'
+        self.ml_model_path = config.get('ml_model_path', None)
+
+        # Initialize ML model if requested
+        if self.use_ml_model:
+            self.ml_model = self._load_ml_model()
+        else:
+            self.ml_model = None
 
         # Initialize detector if using energy likelihood method
-        if self.method in ['energy_likelihood', 'combined']:
+        if self.method in ['energy_likelihood', 'combined'] and not self.use_ml_model:
             self.detector = EnergyLikelihoodDetector(
                 f0=config.get('fundamental_freq_hz', 150.0),
                 n_harmonics=config.get('n_harmonics', 7),
@@ -104,7 +113,38 @@ class DetectionProcessor:
         else:
             self.detector = None
 
-        logger.info(f"DetectionProcessor initialized with method: {self.method}")
+        logger.info(f"DetectionProcessor initialized with method: {self.method}, ML model: {self.use_ml_model}")
+
+    def _load_ml_model(self):
+        """Load ONNX ML model for detection."""
+        try:
+            import onnxruntime as ort
+            from pathlib import Path
+            import os
+
+            # Get model path
+            if self.ml_model_path:
+                model_path = Path(self.ml_model_path)
+            else:
+                # Default model location
+                base_dir = Path(__file__).parent.parent
+                model_path = base_dir / 'drone_33d_mlp.onnx'
+
+            if not model_path.exists():
+                logger.warning(f"ML model not found at {model_path}, falling back to signal processing")
+                return None
+
+            # Load ONNX model
+            session = ort.InferenceSession(str(model_path))
+            logger.info(f"Loaded ML model from {model_path}")
+            return session
+
+        except ImportError:
+            logger.warning("onnxruntime not installed, ML model detection unavailable")
+            return None
+        except Exception as e:
+            logger.error(f"Failed to load ML model: {e}")
+            return None
 
     def process_audio(
         self,
@@ -135,6 +175,10 @@ class DetectionProcessor:
         start_time = time.time()
 
         logger.info(f"Processing audio: {len(audio)} samples, fs={fs} Hz, stereo={is_stereo}")
+
+        # Use ML model if available
+        if self.use_ml_model and self.ml_model:
+            return self._detect_with_ml_model(audio, fs, is_stereo)
 
         # Frame and window the audio
         frame_length_ms = self.config.get('frame_length_ms', 64.0)
@@ -358,6 +402,95 @@ class DetectionProcessor:
             result.mean_doa_deg = float(doa_degrees.mean())
 
         return result
+
+    def _detect_with_ml_model(
+        self,
+        audio: np.ndarray,
+        fs: float,
+        is_stereo: bool
+    ) -> DetectionResult:
+        """Detect using ML model (ONNX)."""
+        import time
+        start_time = time.time()
+
+        try:
+            # Preprocess audio for ML model
+            # Convert to mono if stereo
+            if is_stereo and audio.ndim > 1:
+                audio = np.mean(audio, axis=1)
+
+            # Normalize audio
+            audio = audio / (np.max(np.abs(audio)) + 1e-8)
+
+            # Frame and window the audio
+            frame_length_ms = self.config.get('frame_length_ms', 64.0)
+            hop_length_ms = self.config.get('hop_length_ms', 32.0)
+            from .framing_windowing import frame_and_window
+            frames, frame_times = frame_and_window(
+                audio, fs,
+                frame_length_ms=frame_length_ms,
+                hop_length_ms=hop_length_ms,
+                window_type='hann'
+            )
+
+            # Compute FFT features
+            from .fft import compute_fft_per_frame
+            freqs, spectrum, magnitude, magnitude_db = compute_fft_per_frame(
+                frames, fs,
+                nfft=1024,
+                remove_dc=True
+            )
+
+            # Prepare features for ML model (use magnitude spectrum)
+            # Average across frames or use last frame
+            features = np.mean(magnitude_db, axis=0)
+            features = features.reshape(1, -1).astype(np.float32)
+
+            # Run inference
+            input_name = self.ml_model.get_inputs()[0].name
+            output = self.ml_model.run(None, {input_name: features})
+
+            # Get prediction (assuming binary classification)
+            confidence = float(output[0][0][1] if output[0].shape[1] > 1 else output[0][0][0])
+            detected = confidence >= self.config.get('confidence_threshold', 0.75)
+
+            # Estimate DOA if stereo (re-frame for DOA estimation)
+            doa_angle_deg = None
+            if is_stereo and audio.ndim > 1:
+                try:
+                    # Re-frame original stereo audio for DOA
+                    frames_multichannel, _ = self._frame_multichannel(
+                        audio, fs,
+                        frame_length_ms,
+                        hop_length_ms
+                    )
+                    doa_angles = self._estimate_doa(frames_multichannel, fs)
+                    if doa_angles is not None:
+                        doa_angle_deg = float(np.degrees(doa_angles).mean())
+                except Exception as e:
+                    logger.warning(f"DOA estimation failed in ML model detection: {e}")
+
+            result = DetectionResult(
+                detected=detected,
+                confidence=confidence,
+                detection_method='ml_model',
+                doa_angle_deg=doa_angle_deg,
+                processing_time_sec=time.time() - start_time,
+                n_frames=len(frames)
+            )
+
+            logger.info(f"ML model detection: detected={detected}, confidence={confidence:.3f}")
+            return result
+
+        except Exception as e:
+            logger.error(f"ML model detection failed: {e}", exc_info=True)
+            # Fallback to signal processing
+            return DetectionResult(
+                detected=False,
+                confidence=0.0,
+                detection_method='ml_model_error',
+                processing_time_sec=time.time() - start_time
+            )
 
     def reset(self):
         """Reset detector state."""

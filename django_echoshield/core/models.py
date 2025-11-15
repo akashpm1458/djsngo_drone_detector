@@ -253,11 +253,13 @@ class DetectionConfig(models.Model):
     METHOD_GCC_PHAT_DOA = 'gcc_phat_doa'
     METHOD_HARMONIC_FILTER = 'harmonic_filter'
     METHOD_COMBINED = 'combined'
+    METHOD_ML_MODEL = 'ml_model'
     METHOD_CHOICES = [
         (METHOD_ENERGY_LIKELIHOOD, 'Energy Likelihood Detector'),
         (METHOD_GCC_PHAT_DOA, 'GCC-PHAT Direction of Arrival'),
         (METHOD_HARMONIC_FILTER, 'Harmonic Filter Only'),
         (METHOD_COMBINED, 'Combined Multi-Evidence'),
+        (METHOD_ML_MODEL, 'ML Model (ONNX)'),
     ]
 
     # Primary Key
@@ -321,6 +323,12 @@ class DetectionConfig(models.Model):
                                        help_text="Frame length in milliseconds")
     hop_length_ms = models.FloatField(default=32.0,
                                      help_text="Hop length in milliseconds")
+
+    # ML Model parameters
+    ml_model_path = models.CharField(max_length=255, null=True, blank=True,
+                                    help_text="Path to ONNX model file (e.g., drone_33d_mlp.onnx)")
+    use_ml_model = models.BooleanField(default=False,
+                                      help_text="Use ML model for detection instead of signal processing")
 
     # Audit
     created_at = models.DateTimeField(auto_now_add=True)
