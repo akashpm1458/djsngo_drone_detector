@@ -25,4 +25,7 @@ urlpatterns = [
     # Dashboard views
     path('dashboard/', views.dashboard_view, name='dashboard'),
     path('dashboard/events/', views.events_api, name='events_api'),
+    
+    # Dashboard API endpoints (for backward compatibility)
+    path('v0/events/stats/', views.EventViewSet.as_view({'get': 'stats'}), name='events_stats'),
 ]

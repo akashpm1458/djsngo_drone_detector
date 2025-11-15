@@ -3,6 +3,7 @@ URL configuration for EchoShield project.
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic import RedirectView
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -14,6 +15,9 @@ urlpatterns = [
 
     # Monitoring app - ingest API and dashboard
     path('api/', include('monitoring.urls')),
+    
+    # Dashboard alias for backward compatibility (redirect to /api/dashboard/)
+    path('monitoring/dashboard/', RedirectView.as_view(url='/api/dashboard/', permanent=False), name='dashboard_redirect'),
 ]
 
 # Serve static and media files in development

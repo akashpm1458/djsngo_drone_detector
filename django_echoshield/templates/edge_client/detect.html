@@ -293,6 +293,24 @@
             margin-bottom: 0.5rem;
         }
 
+        .config-info select {
+            padding: 0.5rem;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            font-size: 1rem;
+            background: white;
+            cursor: pointer;
+        }
+
+        .config-info select:hover {
+            border-color: #667eea;
+        }
+
+        .config-info label {
+            display: inline-block;
+            margin-right: 0.5rem;
+        }
+
         .badge {
             display: inline-block;
             padding: 0.25rem 0.75rem;
@@ -312,16 +330,16 @@
         </div>
 
         <div class="card">
-            <div class="config-info">
+            <div class="config-info" style="display: block !important;">
                 <h3>Detection Method</h3>
-                <p>
-                    <label for="detection-method" style="margin-right: 1rem; font-weight: 600;">Method:</label>
-                    <select id="detection-method" style="padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd; margin-right: 1rem;">
+                <p style="display: flex; align-items: center; flex-wrap: wrap; gap: 0.5rem;">
+                    <label for="detection-method" style="font-weight: 600; margin: 0;">Method:</label>
+                    <select id="detection-method" style="padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd; min-width: 200px; font-size: 1rem;">
                         <option value="signal_processing">Signal Processing</option>
                         <option value="ml_model">ML Model (ONNX)</option>
                     </select>
-                    <span class="badge" id="config-method">Loading...</span>
-                    <span id="config-details"></span>
+                    <span class="badge" id="config-method" style="margin: 0;">Loading...</span>
+                    <span id="config-details" style="margin-left: 0.5rem;"></span>
                 </p>
             </div>
 
@@ -389,7 +407,7 @@
         </div>
 
         <div style="text-align: center;">
-            <a href="/monitoring/dashboard" style="color: white; text-decoration: none; opacity: 0.8;">
+            <a href="/api/dashboard/" style="color: white; text-decoration: none; opacity: 0.8;">
                 View Full Dashboard →
             </a>
         </div>
@@ -411,22 +429,54 @@
                 if (data.status === 'ok') {
                     const config = data.config;
                     const useML = config.use_ml_model || config.method === 'ml_model';
-                    document.getElementById('detection-method').value = useML ? 'ml_model' : 'signal_processing';
-                    document.getElementById('config-method').textContent = useML ? 'ML Model' : config.method_display;
-                    document.getElementById('config-details').textContent = useML 
-                        ? `ONNX Model: ${config.ml_model_path || 'drone_33d_mlp.onnx'}`
-                        : `${config.fundamental_freq_hz}Hz, ${config.n_harmonics} harmonics, threshold ${config.confidence_threshold}`;
+                    const methodSelect = document.getElementById('detection-method');
+                    if (methodSelect) {
+                        methodSelect.value = useML ? 'ml_model' : 'signal_processing';
+                    }
+                    const configMethod = document.getElementById('config-method');
+                    if (configMethod) {
+                        configMethod.textContent = useML ? 'ML Model' : (config.method_display || 'Signal Processing');
+                    }
+                    const configDetails = document.getElementById('config-details');
+                    if (configDetails) {
+                        configDetails.textContent = useML 
+                            ? `ONNX Model: ${config.ml_model_path || 'drone_33d_mlp.onnx'}`
+                            : `${config.fundamental_freq_hz || 150}Hz, ${config.n_harmonics || 7} harmonics, threshold ${config.confidence_threshold || 0.75}`;
+                    }
+                } else {
+                    // If no config found, show default
+                    const configMethod = document.getElementById('config-method');
+                    if (configMethod) {
+                        configMethod.textContent = 'Signal Processing';
+                    }
                 }
             } catch (error) {
                 console.error('Error loading config:', error);
+                // Show default on error
+                const configMethod = document.getElementById('config-method');
+                if (configMethod) {
+                    configMethod.textContent = 'Signal Processing';
+                }
             }
         }
 
         // Handle detection method change
-        document.getElementById('detection-method').addEventListener('change', function() {
-            const useML = this.value === 'ml_model';
-            document.getElementById('config-method').textContent = useML ? 'ML Model' : 'Signal Processing';
-        });
+        const methodSelect = document.getElementById('detection-method');
+        if (methodSelect) {
+            methodSelect.addEventListener('change', function() {
+                const useML = this.value === 'ml_model';
+                const configMethod = document.getElementById('config-method');
+                if (configMethod) {
+                    configMethod.textContent = useML ? 'ML Model' : 'Signal Processing';
+                }
+                const configDetails = document.getElementById('config-details');
+                if (configDetails) {
+                    configDetails.textContent = useML 
+                        ? 'ONNX Model: drone_33d_mlp.onnx'
+                        : 'Using signal processing methods';
+                }
+            });
+        }
 
         // Tab switching
         function switchTab(tab) {
@@ -628,7 +678,12 @@
         }
 
         // Load config on page load
-        loadConfig();
+        // Wait for DOM to be fully loaded
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', loadConfig);
+        } else {
+            loadConfig();
+        }
     </script>
 </body>
 </html>
