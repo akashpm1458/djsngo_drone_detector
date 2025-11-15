@@ -3,7 +3,7 @@ Django admin interface for EchoShield core models.
 """
 from django.contrib import admin
 from django.utils.html import format_html
-from .models import Event, Track, TrackContributor
+from .models import Event, Track, TrackContributor, DetectionConfig
 
 
 @admin.register(Event)
@@ -133,3 +133,48 @@ class TrackContributorAdmin(admin.ModelAdmin):
     def has_add_permission(self, request):
         """Disable manual contributor creation."""
         return False
+
+
+@admin.register(DetectionConfig)
+class DetectionConfigAdmin(admin.ModelAdmin):
+    """Admin interface for DetectionConfig model."""
+
+    list_display = [
+        'config_name', 'method', 'is_active', 'fundamental_freq_hz',
+        'n_harmonics', 'confidence_threshold', 'created_at', 'created_by'
+    ]
+    list_filter = ['method', 'is_active', 'created_at']
+    search_fields = ['config_name', 'created_by']
+    readonly_fields = ['created_at', 'updated_at']
+
+    fieldsets = [
+        ('Identity', {
+            'fields': ['config_name', 'is_active', 'method', 'created_by']
+        }),
+        ('Core Parameters', {
+            'fields': [
+                'fundamental_freq_hz', 'n_harmonics', 'confidence_threshold'
+            ]
+        }),
+        ('Frequency Band', {
+            'fields': ['freq_band_low_hz', 'freq_band_high_hz', 'harmonic_bandwidth_hz']
+        }),
+        ('SNR Parameters', {
+            'fields': ['snr_min_db', 'snr_max_db', 'harmonic_min_snr_db']
+        }),
+        ('Evidence Weights', {
+            'fields': ['weight_snr', 'weight_harmonic', 'weight_temporal', 'temporal_window']
+        }),
+        ('DOA & Framing', {
+            'fields': ['mic_spacing_m', 'frame_length_ms', 'hop_length_ms']
+        }),
+        ('Audit', {
+            'fields': ['created_at', 'updated_at']
+        }),
+    ]
+
+    def save_model(self, request, obj, form, change):
+        """Auto-set created_by on save."""
+        if not change:  # Only on creation
+            obj.created_by = request.user.username
+        super().save_model(request, obj, form, change)

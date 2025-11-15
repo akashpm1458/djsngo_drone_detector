@@ -216,6 +216,32 @@
             </div>
         </div>
 
+        <!-- Detection Configuration -->
+        <div class="section">
+            <h2 class="section-title">Detection Configuration</h2>
+            <div id="config-selector" style="margin-bottom: 1rem;">
+                <label for="active-config" style="margin-right: 1rem; font-weight: 600;">Active Method:</label>
+                <select id="active-config" style="padding: 0.5rem; border-radius: 4px; border: 1px solid #ddd;">
+                    <option value="">Loading...</option>
+                </select>
+                <button id="refresh-configs" style="margin-left: 1rem; padding: 0.5rem 1rem; background: #3498db; color: white; border: none; border-radius: 4px; cursor: pointer;">Refresh</button>
+            </div>
+            <div id="config-details" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                <div>
+                    <strong>Method:</strong> <span id="config-method">-</span>
+                </div>
+                <div>
+                    <strong>Fundamental Freq:</strong> <span id="config-f0">-</span> Hz
+                </div>
+                <div>
+                    <strong>Harmonics:</strong> <span id="config-harmonics">-</span>
+                </div>
+                <div>
+                    <strong>Threshold:</strong> <span id="config-threshold">-</span>
+                </div>
+            </div>
+        </div>
+
         <!-- Latency Statistics -->
         <div class="section">
             <h2 class="section-title">Latency Statistics</h2>
@@ -245,13 +271,14 @@
                     <tr>
                         <th>Event ID</th>
                         <th>Node</th>
-                        <th>Sensor Type</th>
+                        <th>Method</th>
+                        <th>Detected</th>
+                        <th>Confidence</th>
+                        <th>SNR (dB)</th>
+                        <th>Angle (°)</th>
+                        <th>Bearing</th>
                         <th>Latency</th>
                         <th>Status</th>
-                        <th>Bearing</th>
-                        <th>Confidence</th>
-                        <th>Location</th>
-                        <th>Track</th>
                         <th>Timestamp</th>
                     </tr>
                 </thead>
@@ -260,12 +287,42 @@
                     <tr>
                         <td><code>{{ event.event_id|slice:":8" }}...</code></td>
                         <td>{{ event.sensor_node_id }}</td>
-                        <td>{{ event.sensor_type }}</td>
-                        <td>{{ event.latency_ms|floatformat:2 }} ms</td>
                         <td>
-                            <span class="badge {{ event.latency_status }}">
-                                {{ event.latency_status }}
-                            </span>
+                            {% if event.detection_method %}
+                                <span class="badge">{{ event.detection_method }}</span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if event.detection_confidence %}
+                                <span class="badge {% if event.detection_confidence >= 0.75 %}normal{% elif event.detection_confidence >= 0.5 %}delayed{% else %}obsolete{% endif %}">
+                                    {% if event.detection_confidence >= 0.75 %}YES{% else %}NO{% endif %}
+                                </span>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if event.detection_confidence %}
+                                {{ event.detection_confidence|floatformat:2 }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if event.snr_db %}
+                                {{ event.snr_db|floatformat:1 }}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td>
+                            {% if event.doa_angle_deg %}
+                                {{ event.doa_angle_deg|floatformat:1 }}°
+                            {% else %}
+                                -
+                            {% endif %}
                         </td>
                         <td>
                             {% if event.bearing_deg %}
@@ -274,26 +331,11 @@
                                 -
                             {% endif %}
                         </td>
+                        <td>{{ event.latency_ms|floatformat:2 }} ms</td>
                         <td>
-                            {% if event.bearing_conf %}
-                                {{ event.bearing_conf|floatformat:2 }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if event.lat and event.lon %}
-                                {{ event.lat|floatformat:4 }}, {{ event.lon|floatformat:4 }}
-                            {% else %}
-                                -
-                            {% endif %}
-                        </td>
-                        <td>
-                            {% if event.object_track_id %}
-                                <code>{{ event.object_track_id|slice:":8" }}...</code>
-                            {% else %}
-                                -
-                            {% endif %}
+                            <span class="badge {{ event.latency_status }}">
+                                {{ event.latency_status }}
+                            </span>
                         </td>
                         <td>{{ event.created_at|date:"Y-m-d H:i:s" }}</td>
                     </tr>
@@ -315,6 +357,85 @@
     </div>
 
     <script>
+        // Load detection configurations
+        async function loadConfigs() {
+            try {
+                const response = await fetch('/edge_client/api/detection-config/list');
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    const select = document.getElementById('active-config');
+                    select.innerHTML = '';
+
+                    data.configs.forEach(config => {
+                        const option = document.createElement('option');
+                        option.value = config.id;
+                        option.textContent = `${config.config_name} (${config.method_display})`;
+                        if (config.is_active) {
+                            option.selected = true;
+                        }
+                        select.appendChild(option);
+                    });
+
+                    // Load active config details
+                    loadActiveConfigDetails();
+                }
+            } catch (error) {
+                console.error('Error loading configs:', error);
+            }
+        }
+
+        // Load active configuration details
+        async function loadActiveConfigDetails() {
+            try {
+                const response = await fetch('/edge_client/api/detection-config/active');
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    const config = data.config;
+                    document.getElementById('config-method').textContent = config.method_display;
+                    document.getElementById('config-f0').textContent = config.fundamental_freq_hz.toFixed(1);
+                    document.getElementById('config-harmonics').textContent = config.n_harmonics;
+                    document.getElementById('config-threshold').textContent = config.confidence_threshold.toFixed(2);
+                }
+            } catch (error) {
+                console.error('Error loading active config:', error);
+            }
+        }
+
+        // Activate selected configuration
+        async function activateConfig(configId) {
+            try {
+                const response = await fetch(`/edge_client/api/detection-config/${configId}/activate`, {
+                    method: 'POST',
+                });
+                const data = await response.json();
+
+                if (data.status === 'activated') {
+                    loadActiveConfigDetails();
+                    alert('Configuration activated successfully!');
+                }
+            } catch (error) {
+                console.error('Error activating config:', error);
+                alert('Error activating configuration');
+            }
+        }
+
+        // Event listeners
+        document.getElementById('active-config').addEventListener('change', function() {
+            const configId = this.value;
+            if (configId && confirm('Activate this configuration?')) {
+                activateConfig(configId);
+            }
+        });
+
+        document.getElementById('refresh-configs').addEventListener('click', function() {
+            loadConfigs();
+        });
+
+        // Load configs on page load
+        loadConfigs();
+
         // Auto-refresh dashboard every 5 seconds
         setTimeout(function() {
             location.reload();

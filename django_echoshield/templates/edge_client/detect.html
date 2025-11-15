@@ -1,0 +1,618 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Drone Detection - EchoShield</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 3rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 1rem 2rem;
+            background: none;
+            border: none;
+            border-bottom: 3px solid transparent;
+            cursor: pointer;
+            font-size: 1rem;
+            color: #666;
+            transition: all 0.3s;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+            font-weight: 600;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        .upload-area {
+            border: 3px dashed #ccc;
+            border-radius: 12px;
+            padding: 3rem;
+            text-align: center;
+            transition: all 0.3s;
+            cursor: pointer;
+        }
+
+        .upload-area:hover,
+        .upload-area.drag-over {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+
+        .upload-icon {
+            font-size: 4rem;
+            color: #667eea;
+            margin-bottom: 1rem;
+        }
+
+        .upload-text {
+            font-size: 1.2rem;
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .upload-hint {
+            color: #999;
+            font-size: 0.9rem;
+        }
+
+        .file-input {
+            display: none;
+        }
+
+        .record-button {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: #667eea;
+            border: none;
+            color: white;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+            margin: 2rem auto;
+            display: block;
+        }
+
+        .record-button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .record-button.recording {
+            background: #e74c3c;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        .timer {
+            text-align: center;
+            font-size: 2rem;
+            color: #667eea;
+            margin: 1rem 0;
+            font-weight: 600;
+        }
+
+        .result-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 2rem;
+            color: white;
+            margin-top: 2rem;
+            display: none;
+        }
+
+        .result-card.show {
+            display: block;
+            animation: slideIn 0.5s;
+        }
+
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .result-status {
+            text-align: center;
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .result-text {
+            text-align: center;
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+            font-weight: 600;
+        }
+
+        .result-metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .metric {
+            background: rgba(255,255,255,0.2);
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            opacity: 0.9;
+            margin-bottom: 0.5rem;
+        }
+
+        .metric-value {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .processing {
+            text-align: center;
+            padding: 3rem;
+            display: none;
+        }
+
+        .processing.show {
+            display: block;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 60px;
+            height: 60px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .btn {
+            background: #667eea;
+            color: white;
+            padding: 0.75rem 2rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn:hover {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error {
+            background: #fee;
+            border: 1px solid #fcc;
+            color: #c00;
+            padding: 1rem;
+            border-radius: 6px;
+            margin: 1rem 0;
+            display: none;
+        }
+
+        .error.show {
+            display: block;
+        }
+
+        .config-info {
+            background: #f8f9ff;
+            padding: 1rem;
+            border-radius: 6px;
+            margin-bottom: 2rem;
+        }
+
+        .config-info h3 {
+            color: #667eea;
+            margin-bottom: 0.5rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            background: #667eea;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🛡️ EchoShield Drone Detection</h1>
+            <p>Upload audio or record live to detect drones using advanced signal processing</p>
+        </div>
+
+        <div class="card">
+            <div class="config-info">
+                <h3>Active Configuration</h3>
+                <p>
+                    <span class="badge" id="config-method">Loading...</span>
+                    <span id="config-details"></span>
+                </p>
+            </div>
+
+            <div class="tabs">
+                <button class="tab active" onclick="switchTab('upload')">📁 Upload Audio File</button>
+                <button class="tab" onclick="switchTab('record')">🎤 Record Live Audio</button>
+            </div>
+
+            <div id="upload-tab" class="tab-content active">
+                <div class="upload-area" id="uploadArea">
+                    <div class="upload-icon">📁</div>
+                    <div class="upload-text">Click to select or drag & drop audio file</div>
+                    <div class="upload-hint">Supported: WAV, MP3, FLAC, OGG, M4A (Max: 50MB, 5 minutes)</div>
+                    <input type="file" id="fileInput" class="file-input" accept=".wav,.mp3,.flac,.ogg,.m4a">
+                </div>
+                <div style="text-align: center; margin-top: 1rem;">
+                    <button class="btn" id="uploadBtn" disabled>Upload & Analyze</button>
+                </div>
+            </div>
+
+            <div id="record-tab" class="tab-content">
+                <div style="text-align: center;">
+                    <p style="margin-bottom: 2rem; color: #666;">Click the button below to start recording</p>
+                    <button class="record-button" id="recordBtn">
+                        <div>●</div>
+                        <div style="font-size: 0.8rem; margin-top: 0.5rem;">START</div>
+                    </button>
+                    <div class="timer" id="timer">00:00</div>
+                    <p style="color: #999;">Maximum recording time: 5 minutes</p>
+                </div>
+            </div>
+
+            <div class="error" id="error"></div>
+
+            <div class="processing" id="processing">
+                <div class="spinner"></div>
+                <p>Processing audio... This may take a few moments</p>
+            </div>
+
+            <div class="result-card" id="result">
+                <div class="result-status" id="resultIcon"></div>
+                <div class="result-text" id="resultText"></div>
+                <div class="result-metrics">
+                    <div class="metric">
+                        <div class="metric-label">Confidence</div>
+                        <div class="metric-value" id="confidence">-</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">SNR (dB)</div>
+                        <div class="metric-value" id="snr">-</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Method</div>
+                        <div class="metric-value" id="method" style="font-size: 1.2rem;">-</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Angle (°)</div>
+                        <div class="metric-value" id="angle">-</div>
+                    </div>
+                </div>
+                <div style="text-align: center; margin-top: 2rem;">
+                    <button class="btn" onclick="resetDetection()">Analyze Another</button>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="/monitoring/dashboard" style="color: white; text-decoration: none; opacity: 0.8;">
+                View Full Dashboard →
+            </a>
+        </div>
+    </div>
+
+    <script>
+        let mediaRecorder;
+        let audioChunks = [];
+        let recordingTimer;
+        let recordingSeconds = 0;
+        let selectedFile = null;
+
+        // Load active configuration
+        async function loadConfig() {
+            try {
+                const response = await fetch('/edge_client/api/detection-config/active');
+                const data = await response.json();
+
+                if (data.status === 'ok') {
+                    const config = data.config;
+                    document.getElementById('config-method').textContent = config.method_display;
+                    document.getElementById('config-details').textContent =
+                        `${config.fundamental_freq_hz}Hz, ${config.n_harmonics} harmonics, threshold ${config.confidence_threshold}`;
+                }
+            } catch (error) {
+                console.error('Error loading config:', error);
+            }
+        }
+
+        // Tab switching
+        function switchTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+
+            if (tab === 'upload') {
+                document.querySelectorAll('.tab')[0].classList.add('active');
+                document.getElementById('upload-tab').classList.add('active');
+            } else {
+                document.querySelectorAll('.tab')[1].classList.add('active');
+                document.getElementById('record-tab').classList.add('active');
+            }
+
+            resetDetection();
+        }
+
+        // File upload handling
+        const uploadArea = document.getElementById('uploadArea');
+        const fileInput = document.getElementById('fileInput');
+        const uploadBtn = document.getElementById('uploadBtn');
+
+        uploadArea.addEventListener('click', () => fileInput.click());
+
+        uploadArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadArea.classList.add('drag-over');
+        });
+
+        uploadArea.addEventListener('dragleave', () => {
+            uploadArea.classList.remove('drag-over');
+        });
+
+        uploadArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadArea.classList.remove('drag-over');
+
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            selectedFile = file;
+            uploadBtn.disabled = false;
+            document.querySelector('.upload-text').textContent = `Selected: ${file.name}`;
+        }
+
+        uploadBtn.addEventListener('click', async () => {
+            if (!selectedFile) return;
+
+            await processAudioFile(selectedFile);
+        });
+
+        // Recording handling
+        const recordBtn = document.getElementById('recordBtn');
+        const timer = document.getElementById('timer');
+
+        recordBtn.addEventListener('click', async () => {
+            if (!mediaRecorder || mediaRecorder.state === 'inactive') {
+                await startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        async function startRecording() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                recordingSeconds = 0;
+
+                mediaRecorder.ondataavailable = (event) => {
+                    audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/wav' });
+                    const audioFile = new File([audioBlob], 'recording.wav', { type: 'audio/wav' });
+
+                    clearInterval(recordingTimer);
+                    await processAudioFile(audioFile);
+                };
+
+                mediaRecorder.start();
+                recordBtn.classList.add('recording');
+                recordBtn.innerHTML = '<div>■</div><div style="font-size: 0.8rem; margin-top: 0.5rem;">STOP</div>';
+
+                recordingTimer = setInterval(() => {
+                    recordingSeconds++;
+                    const minutes = Math.floor(recordingSeconds / 60);
+                    const seconds = recordingSeconds % 60;
+                    timer.textContent = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+
+                    // Auto-stop at 5 minutes
+                    if (recordingSeconds >= 300) {
+                        stopRecording();
+                    }
+                }, 1000);
+
+            } catch (error) {
+                showError('Microphone access denied: ' + error.message);
+            }
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state === 'recording') {
+                mediaRecorder.stop();
+                mediaRecorder.stream.getTracks().forEach(track => track.stop());
+                recordBtn.classList.remove('recording');
+                recordBtn.innerHTML = '<div>●</div><div style="font-size: 0.8rem; margin-top: 0.5rem;">START</div>';
+            }
+        }
+
+        // Process audio file
+        async function processAudioFile(file) {
+            hideError();
+            document.getElementById('processing').classList.add('show');
+            document.getElementById('result').classList.remove('show');
+
+            const formData = new FormData();
+            formData.append('audio_file', file);
+            formData.append('sensor_node_id', 'web_interface');
+
+            try {
+                const response = await fetch('/edge_client/api/audio/upload', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    displayResult(data.result);
+                } else {
+                    showError(data.error || 'Processing failed');
+                }
+            } catch (error) {
+                showError('Error processing audio: ' + error.message);
+            } finally {
+                document.getElementById('processing').classList.remove('show');
+            }
+        }
+
+        // Display results
+        function displayResult(result) {
+            document.getElementById('result').classList.add('show');
+
+            if (result.detected) {
+                document.getElementById('resultIcon').textContent = '🚨';
+                document.getElementById('resultText').textContent = 'DRONE DETECTED!';
+            } else {
+                document.getElementById('resultIcon').textContent = '✅';
+                document.getElementById('resultText').textContent = 'No Drone Detected';
+            }
+
+            document.getElementById('confidence').textContent =
+                (result.confidence * 100).toFixed(1) + '%';
+            document.getElementById('snr').textContent =
+                result.snr_db ? result.snr_db.toFixed(1) : 'N/A';
+            document.getElementById('method').textContent =
+                result.detection_method || 'N/A';
+            document.getElementById('angle').textContent =
+                result.doa_angle_deg ? result.doa_angle_deg.toFixed(1) : 'N/A';
+        }
+
+        // Reset detection
+        function resetDetection() {
+            document.getElementById('result').classList.remove('show');
+            document.getElementById('processing').classList.remove('show');
+            selectedFile = null;
+            uploadBtn.disabled = true;
+            document.querySelector('.upload-text').textContent = 'Click to select or drag & drop audio file';
+            timer.textContent = '00:00';
+            recordingSeconds = 0;
+            hideError();
+        }
+
+        // Error handling
+        function showError(message) {
+            const errorEl = document.getElementById('error');
+            errorEl.textContent = message;
+            errorEl.classList.add('show');
+        }
+
+        function hideError() {
+            document.getElementById('error').classList.remove('show');
+        }
+
+        // Load config on page load
+        loadConfig();
+    </script>
+</body>
+</html>
